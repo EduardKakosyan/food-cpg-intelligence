@@ -1,0 +1,57 @@
+# ──── Python ────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ──── Virtual environments ────
+.venv/
+venv/
+env/
+.python-version
+
+# ──── uv ────
+# Lock file is committed; cache is not
+.uv/
+
+# ──── IDE ────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ──── Environment & secrets ────
+.env
+.env.local
+.env.production
+
+# ──── Data (large files, not committed) ────
+data/raw/*
+data/processed/*
+data/embeddings/*
+data/training/*
+data/evaluation/*
+!data/**/.gitkeep
+
+# ──── Models (large binary files) ────
+models/*
+!models/.gitkeep
+
+# ──── Notebooks checkpoints ────
+.ipynb_checkpoints/
+
+# ──── Testing & coverage ────
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# ──── Misc ────
+*.log
+*.pid
+*.seed
