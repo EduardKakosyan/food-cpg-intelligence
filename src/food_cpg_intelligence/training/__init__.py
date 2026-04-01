@@ -1,1 +1,1 @@
-"""Synthetic data generation and Unsloth QLoRA fine-tuning."""
+"""Training data pipeline, MLX LoRA fine-tuning, and model export for Apple Silicon."""

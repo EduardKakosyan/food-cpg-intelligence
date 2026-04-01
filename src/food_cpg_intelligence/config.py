@@ -39,14 +39,17 @@ class Settings(BaseSettings):
     # --- Vector Store ---
     vector_store_backend: str = "chromadb"  # "chromadb" | "qdrant"
 
-    # --- Fine-tuning ---
+    # --- Fine-tuning (MLX LoRA on Apple Silicon) ---
     base_model: str = "Qwen/Qwen3.5-9B"
     lora_rank: int = 16
     lora_alpha: int = 32
+    adapter_dir: str = "models/adapters/skufood"
+    gguf_dir: str = "models/gguf"
+    training_config_path: str = "configs/training.yaml"
 
     # --- Models (inference) ---
     claude_model: str = "claude-sonnet-4-6"
-    ollama_model: str = ""  # set after fine-tuning + MLX conversion
+    ollama_model: str = "skufood-9b"
 
     # --- Serving ---
     api_host: str = "0.0.0.0"

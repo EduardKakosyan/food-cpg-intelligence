@@ -163,41 +163,135 @@ def stats(
 
 
 @app.command()
-def finetune(
-    config: str = typer.Option("configs/training.yaml", help="Training config path."),
-    resume_from: str = typer.Option("", help="Checkpoint path to resume from."),
+def prepare_mlx(
+    input_path: str = typer.Option("", help="Path to filtered pairs JSONL."),
+    output_dir: str = typer.Option("", help="Output directory for mlx-lm format."),
 ) -> None:
-    """Run QLoRA fine-tuning via Unsloth."""
-    typer.echo("Not yet implemented: finetune (Phase 4)")
-    raise typer.Exit(code=1)
+    """Convert training data to mlx-lm chat messages format."""
+    configure_logging()
+
+    from food_cpg_intelligence.training.mlx_data_prep import prepare_mlx_data
+
+    train_dir = settings.resolve_path(settings.training_dir)
+    in_path = Path(input_path) if input_path else train_dir / "filtered_pairs.jsonl"
+    out_dir = Path(output_dir) if output_dir else train_dir / "mlx"
+
+    if not in_path.exists():
+        typer.echo(f"Filtered pairs not found: {in_path}")
+        raise typer.Exit(code=1)
+
+    train_path, val_path = prepare_mlx_data(in_path, out_dir)
+    typer.echo(f"MLX data prepared: {train_path} and {val_path}")
+
+
+@app.command()
+def finetune(
+    config_path: str = typer.Option("configs/training.yaml", help="Training config YAML path."),
+    dry_run: bool = typer.Option(False, help="Validate config and data without training."),
+) -> None:
+    """Run MLX LoRA fine-tuning locally on Apple Silicon."""
+    configure_logging()
+
+    from food_cpg_intelligence.training.config_models import load_training_config
+    from food_cpg_intelligence.training.mlx_trainer import run_finetune
+
+    cfg_path = Path(config_path)
+    if not cfg_path.exists():
+        typer.echo(f"Config not found: {cfg_path}")
+        raise typer.Exit(code=1)
+
+    cfg = load_training_config(cfg_path)
+    typer.echo(f"Model: {cfg.model}, LoRA rank: {cfg.lora.rank}, iters: {cfg.iters}")
+
+    if dry_run:
+        typer.echo("Dry run — validating config and data...")
+
+    adapter_dir = run_finetune(cfg, dry_run=dry_run)
+    typer.echo(f"{'Dry run complete' if dry_run else 'Training complete'}: {adapter_dir}")
 
 
 @app.command()
 def convert_mlx(
-    adapter_path: str = typer.Option(..., help="Path to trained LoRA adapter."),
-    output_path: str = typer.Option("", help="Output path for MLX model."),
-    quantize: str = typer.Option("4bit", help="Quantization level."),
+    adapter_path: str = typer.Option("", help="Path to trained LoRA adapter directory."),
+    output_path: str = typer.Option("", help="Output path for GGUF model."),
+    quantize: str = typer.Option("q4_k_m", help="Quantization type (e.g. q4_k_m)."),
 ) -> None:
-    """Convert fine-tuned model to MLX format for Apple Silicon."""
-    typer.echo("Not yet implemented: convert-mlx (Phase 4)")
-    raise typer.Exit(code=1)
+    """Fuse LoRA adapter and convert to GGUF for Ollama."""
+    configure_logging()
+
+    from food_cpg_intelligence.training.mlx_export import convert_to_gguf, fuse_adapter
+
+    adapter = Path(adapter_path) if adapter_path else settings.resolve_path(settings.adapter_dir)
+    gguf_out = (
+        Path(output_path)
+        if output_path
+        else settings.resolve_path(settings.gguf_dir) / "skufood.gguf"
+    )
+    fused_dir = adapter.parent / "fused"
+
+    typer.echo(f"Fusing adapter: {adapter}")
+    fuse_adapter(settings.base_model, adapter, fused_dir)
+
+    typer.echo(f"Converting to GGUF: {gguf_out}")
+    convert_to_gguf(fused_dir, gguf_out, quantization=quantize)
+    typer.echo(f"Done: {gguf_out}")
 
 
 @app.command()
 def setup_ollama(
-    model_path: str = typer.Option(..., help="Path to MLX model."),
-    model_name: str = typer.Option("skufood-7b", help="Ollama model name."),
+    model_path: str = typer.Option("", help="Path to GGUF model file."),
+    model_name: str = typer.Option("", help="Ollama model name."),
 ) -> None:
     """Register fine-tuned model with Ollama."""
-    typer.echo("Not yet implemented: setup-ollama (Phase 4)")
-    raise typer.Exit(code=1)
+    configure_logging()
+
+    from food_cpg_intelligence.training.mlx_export import generate_modelfile, register_with_ollama
+
+    gguf = (
+        Path(model_path)
+        if model_path
+        else settings.resolve_path(settings.gguf_dir) / "skufood.gguf"
+    )
+    name = model_name or settings.ollama_model
+
+    if not gguf.exists():
+        typer.echo(f"GGUF model not found: {gguf}")
+        raise typer.Exit(code=1)
+
+    modelfile = gguf.parent / "Modelfile"
+    generate_modelfile(gguf, modelfile)
+    register_with_ollama(modelfile, name)
+    typer.echo(f"Registered with Ollama as '{name}'")
 
 
 @app.command()
 def eval_checkpoints(
-    checkpoints_dir: str = typer.Option(..., help="Directory with training checkpoints."),
-    gold_set_path: str = typer.Option(..., help="Path to gold standard set."),
+    checkpoints_dir: str = typer.Option("", help="Directory with training checkpoints."),
+    gold_set_path: str = typer.Option("", help="Path to gold standard JSONL."),
+    sample_size: int = typer.Option(50, help="Number of gold set questions to sample."),
 ) -> None:
-    """Evaluate training checkpoints against gold standard."""
-    typer.echo("Not yet implemented: eval-checkpoints (Phase 4)")
-    raise typer.Exit(code=1)
+    """Evaluate training checkpoints against the gold standard set."""
+    configure_logging()
+
+    from food_cpg_intelligence.training.checkpoint_eval import (
+        evaluate_all_checkpoints,
+        format_eval_table,
+    )
+
+    ckpt_dir = (
+        Path(checkpoints_dir) if checkpoints_dir else settings.resolve_path(settings.adapter_dir)
+    )
+    gold_path = (
+        Path(gold_set_path)
+        if gold_set_path
+        else settings.resolve_path(settings.evaluation_dir) / "gold_candidates.jsonl"
+    )
+
+    if not ckpt_dir.exists():
+        typer.echo(f"Checkpoints directory not found: {ckpt_dir}")
+        raise typer.Exit(code=1)
+
+    results = evaluate_all_checkpoints(
+        ckpt_dir, settings.base_model, gold_path, sample_size=sample_size
+    )
+    typer.echo(format_eval_table(results))
