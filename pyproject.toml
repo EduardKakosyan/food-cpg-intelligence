@@ -92,7 +92,8 @@ select = [
     "RUF", # ruff-specific rules
 ]
 ignore = [
-    "E501",  # line length handled by formatter
+    "E501",   # line length handled by formatter
+    "TCH001", # first-party imports used at runtime with __future__ annotations
     "TCH003", # stdlib imports used at runtime (Path, date) with __future__ annotations
 ]
 
