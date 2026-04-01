@@ -222,6 +222,10 @@ def convert_mlx(
     from food_cpg_intelligence.training.mlx_export import convert_to_gguf, fuse_adapter
 
     adapter = Path(adapter_path) if adapter_path else settings.resolve_path(settings.adapter_dir)
+    if not adapter.exists():
+        typer.echo(f"Adapter not found: {adapter}")
+        typer.echo("Run 'fcpg train finetune' first to train a LoRA adapter.")
+        raise typer.Exit(code=1)
     gguf_out = (
         Path(output_path)
         if output_path

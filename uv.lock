@@ -981,6 +981,7 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "ipykernel" },
+    { name = "mlx-lm" },
     { name = "mypy" },
     { name = "nbstripout" },
     { name = "pre-commit" },
@@ -988,9 +989,6 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
-]
-local = [
-    { name = "mlx-lm" },
 ]
 training = [
     { name = "trl" },
@@ -1014,7 +1012,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29" },
     { name = "lxml", specifier = ">=5.0" },
-    { name = "mlx-lm", marker = "extra == 'local'", specifier = ">=0.20" },
+    { name = "mlx-lm", marker = "extra == 'dev'", specifier = ">=0.20" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "nbstripout", marker = "extra == 'dev'", specifier = ">=0.7" },
     { name = "pandas", specifier = ">=2.2" },
@@ -1043,7 +1041,7 @@ requires-dist = [
     { name = "unsloth", marker = "extra == 'training'", specifier = ">=2024.8" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
-provides-extras = ["dev", "training", "local"]
+provides-extras = ["dev", "training"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "types-pyyaml", specifier = ">=6.0.12.20250915" }]

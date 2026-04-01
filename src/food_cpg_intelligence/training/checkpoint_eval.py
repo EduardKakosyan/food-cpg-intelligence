@@ -69,7 +69,7 @@ def evaluate_checkpoint_mlx(
         samples=len(samples),
     )
 
-    model, tokenizer = load(base_model, adapter_path=str(adapter_path))
+    model, tokenizer = load(base_model, adapter_path=str(adapter_path))  # type: ignore[misc]
 
     overlaps: list[float] = []
     lengths: list[int] = []

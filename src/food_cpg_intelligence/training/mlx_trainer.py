@@ -129,10 +129,13 @@ def run_finetune(config: TrainingConfig, *, dry_run: bool = False) -> Path:
 
 
 def _run_mlx_lora_programmatic(config_path: str) -> None:
-    """Invoke mlx_lm.lora training programmatically."""
+    """Invoke mlx_lm.lora training programmatically via run()."""
     from mlx_lm import lora
 
-    lora.train(config=config_path)
+    # Build args namespace from config YAML, same as CLI --config does
+    parser = lora.build_parser()  # type: ignore[no-untyped-call]
+    args = parser.parse_args(["--config", config_path])
+    lora.run(args)
 
 
 def _run_mlx_lora_subprocess(config_path: str) -> None:

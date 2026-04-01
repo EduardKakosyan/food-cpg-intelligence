@@ -53,13 +53,11 @@ dev = [
     "pre-commit>=3.8",
     "ipykernel>=6.29",
     "nbstripout>=0.7",
+    "mlx-lm>=0.20",
 ]
 training = [
     "unsloth>=2024.8",
     "trl>=0.9",
-]
-local = [
-    "mlx-lm>=0.20",
 ]
 
 [project.scripts]
