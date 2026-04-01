@@ -1,0 +1,48 @@
+# Evaluation Framework Configuration
+
+# Gold standard test set
+gold_standard:
+  target_count: 300
+  category_distribution:
+    retailer_strategy: 50
+    pricing_promotion: 50
+    trade_shows: 50
+    product_launch: 50
+    general_cpg: 50
+    unanswerable: 25
+  difficulty_distribution:
+    easy: 0.4
+    medium: 0.4
+    hard: 0.2
+
+# RAGAS metrics
+ragas:
+  metrics:
+    - faithfulness
+    - answer_relevancy
+    - context_recall
+    - context_precision
+
+# LLM-as-Judge
+judge:
+  model: "claude-sonnet-4-6"
+  temperature: 0.0
+  dimensions:
+    - accuracy
+    - grounding
+    - completeness
+    - voice_fidelity
+    - hallucination_resistance
+  scale_min: 1
+  scale_max: 5
+  prompt_template: "configs/judge_prompt.txt"
+
+# Blind evaluation
+blind_eval:
+  shuffle_seed: 42
+
+# Reporting
+report:
+  output_format: "markdown"
+  include_confidence_intervals: true
+  bootstrap_samples: 1000

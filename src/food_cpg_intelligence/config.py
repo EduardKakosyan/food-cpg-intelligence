@@ -1,5 +1,10 @@
 """Application configuration loaded from environment variables."""
 
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Literal
+
 from pydantic_settings import BaseSettings
 
 
@@ -8,28 +13,50 @@ class Settings(BaseSettings):
 
     model_config = {"env_prefix": "FCPG_", "env_file": ".env", "extra": "ignore"}
 
+    # --- Environment ---
+    environment: Literal["local", "colab"] = "local"
+
     # --- Anthropic (evaluation / synthetic data generation) ---
     anthropic_api_key: str = ""
 
-    # --- Paths ---
+    # --- Paths (local defaults — override via env for Colab) ---
     data_dir: str = "data"
+    raw_data_dir: str = "data/raw/SKUFood AI Project"
+    newsletters_dir: str = "data/raw/SKUFood AI Project/SKUFood Newsletters"
+    processed_dir: str = "data/processed"
+    training_dir: str = "data/training"
+    evaluation_dir: str = "data/evaluation"
+    embeddings_dir: str = "data/embeddings"
     models_dir: str = "models"
 
+    # --- Colab ---
+    colab_base_path: str = "/content/drive/MyDrive/food-cpg-intelligence"
+
     # --- Embedding ---
-    embedding_model: str = "nomic-ai/nomic-embed-text-v1.5"
+    embedding_model: str = "nomic-ai/nomic-embed-text-v2-moe"
     embedding_dim: int = 768
 
     # --- Vector Store ---
     vector_store_backend: str = "chromadb"  # "chromadb" | "qdrant"
 
     # --- Fine-tuning ---
-    base_model: str = "mistralai/Mistral-7B-Instruct-v0.3"
+    base_model: str = "Qwen/Qwen3.5-9B"
     lora_rank: int = 16
     lora_alpha: int = 32
+
+    # --- Models (inference) ---
+    claude_model: str = "claude-sonnet-4-6"
+    ollama_model: str = ""  # set after fine-tuning + MLX conversion
 
     # --- Serving ---
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+
+    def resolve_path(self, relative: str) -> Path:
+        """Return absolute path, adjusting base for local vs. Colab environment."""
+        if self.environment == "colab":
+            return Path(self.colab_base_path) / relative
+        return Path(relative).resolve()
 
 
 settings = Settings()

@@ -7,7 +7,7 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
-        args: ["--maxkb=2000"]
+        args: ["--maxkb=5000"]
       - id: check-merge-conflict
       - id: detect-private-key
 
@@ -17,3 +17,19 @@ repos:
       - id: ruff        # linter
         args: [--fix]
       - id: ruff-format # formatter
+
+  # ──── Data safety: block data/model files from being committed ────
+  - repo: local
+    hooks:
+      - id: forbid-data-files
+        name: Block data and model files from commit
+        entry: "bash -c 'echo BLOCKED -- data/model files must not be committed && exit 1' --"
+        language: system
+        files: '(?x)^(data/raw/.*|data/processed/.*|data/training/.*|data/evaluation/.*|data/embeddings/.*|models/(?!\.gitkeep$).*|.*\.mp4$|.*\.wav$|.*\.mp3$|.*\.gguf$|.*\.safetensors$)$'
+        exclude: '\.gitkeep$'
+
+  # ──── Strip notebook outputs before commit ────
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.7.1
+    hooks:
+      - id: nbstripout

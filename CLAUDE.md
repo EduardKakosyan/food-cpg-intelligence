@@ -7,7 +7,7 @@ Food & CPG Product Intelligence Platform — a pure-Python domain-specific Q&A s
 ## Tech Stack
 
 - **Python 3.11+** with **uv** for environment/dependency management
-- **Unsloth** for QLoRA fine-tuning (Mistral 7B or Llama 3.1 8B)
+- **Unsloth** for QLoRA fine-tuning (Qwen 3.5 9B primary; Qwen 3.5 4B, Gemma 3 4B alternatives)
 - **ChromaDB / Qdrant** for vector storage (evaluation pending)
 - **FastAPI** for serving, **Typer** for CLI
 - **RAGAS** + Claude (LLM-as-judge) for evaluation

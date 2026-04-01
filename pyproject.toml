@@ -14,6 +14,7 @@ dependencies = [
     "httpx>=0.27",
     "beautifulsoup4>=4.12",
     "lxml>=5.0",
+    "python-docx>=1.1",
     # --- Embeddings & Vector Store ---
     "sentence-transformers>=3.0",
     "chromadb>=0.5",
@@ -39,6 +40,7 @@ dependencies = [
     "typer>=0.12",
     "tqdm>=4.66",
     "tenacity>=8.5",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -50,9 +52,14 @@ dev = [
     "pytest-asyncio>=0.23",
     "pre-commit>=3.8",
     "ipykernel>=6.29",
+    "nbstripout>=0.7",
 ]
 training = [
     "unsloth>=2024.8",
+    "trl>=0.9",
+]
+local = [
+    "mlx-lm>=0.20",
 ]
 
 [project.scripts]

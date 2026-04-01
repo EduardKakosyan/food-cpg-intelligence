@@ -38,6 +38,16 @@ data/training/*
 data/evaluation/*
 !data/**/.gitkeep
 
+# ──── DATA SAFETY: Prevent accidental commit of large/sensitive files ────
+*.mp4
+*.wav
+*.mp3
+*.gguf
+*.bin
+*.safetensors
+*.docx
+!docs/*.docx
+
 # ──── Models (large binary files) ────
 models/*
 !models/.gitkeep

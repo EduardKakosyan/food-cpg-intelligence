@@ -1,0 +1,49 @@
+# RAG Pipeline Configuration
+
+# Chunking
+chunking:
+  strategy: recursive
+  chunk_size: 512       # tokens
+  chunk_overlap: 50     # tokens
+  separators:
+    - "\n\n"
+    - "\n"
+    - ". "
+    - " "
+
+# Embedding (V2 MoE: 8K context, multilingual, Matryoshka dims 768->256)
+embedding:
+  model: "nomic-ai/nomic-embed-text-v2-moe"
+  dimension: 768
+  batch_size: 64
+
+# Retrieval
+retrieval:
+  top_k: 5
+  score_threshold: 0.0  # 0 = no threshold
+
+# Vector store
+vector_store:
+  backend: "chromadb"     # "chromadb" or "qdrant"
+  chromadb:
+    persist_directory: "data/embeddings/chromadb"
+    collection_name: "skufood_corpus"
+  qdrant:
+    host: "localhost"
+    port: 6333
+    collection_name: "skufood_corpus"
+
+# Generation (Claude)
+generation:
+  model: "claude-sonnet-4-6"
+  temperature: 0.3
+  max_tokens: 1024
+  system_prompt: |
+    You are Ask Peter — an AI assistant that channels Peter Chapman's decades
+    of Canadian CPG expertise. You give practical, specific advice to food and
+    beverage SMEs on retailer meetings, pricing strategy, trade shows,
+    promotion planning, and category management.
+
+    Ground every answer in the provided context. If the context does not
+    contain enough information to answer, say so clearly rather than
+    speculating.
