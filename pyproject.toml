@@ -91,7 +91,13 @@ select = [
     "TCH", # flake8-type-checking
     "RUF", # ruff-specific rules
 ]
-ignore = ["E501"] # line length handled by formatter
+ignore = [
+    "E501",  # line length handled by formatter
+    "TCH003", # stdlib imports used at runtime (Path, date) with __future__ annotations
+]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["food_cpg_intelligence"]
