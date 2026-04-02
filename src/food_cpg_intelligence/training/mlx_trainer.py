@@ -129,13 +129,31 @@ def run_finetune(config: TrainingConfig, *, dry_run: bool = False) -> Path:
 
 
 def _run_mlx_lora_programmatic(config_path: str) -> None:
-    """Invoke mlx_lm.lora training programmatically via run()."""
+    """Invoke mlx_lm.lora training programmatically.
+
+    Replicates the config-loading logic from mlx_lm.lora.main():
+    parse CLI defaults, load YAML, merge, apply CONFIG_DEFAULTS.
+    """
+    import types
+
+    import yaml
     from mlx_lm import lora
 
-    # Build args namespace from config YAML, same as CLI --config does
-    parser = lora.build_parser()  # type: ignore[no-untyped-call]
-    args = parser.parse_args(["--config", config_path])
-    lora.run(args)
+    # Start from defaults
+    args: dict[str, object] = dict(lora.CONFIG_DEFAULTS)
+
+    # Merge YAML config
+    with open(config_path) as f:
+        file_config: dict[str, object] = yaml.safe_load(f)
+    if file_config:
+        args.update(file_config)
+
+    # Ensure train=True
+    args["train"] = True
+
+    # Convert to namespace for lora.run()
+    ns = types.SimpleNamespace(**args)
+    lora.run(ns)
 
 
 def _run_mlx_lora_subprocess(config_path: str) -> None:

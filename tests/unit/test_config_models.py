@@ -55,7 +55,7 @@ def test_to_mlx_dict() -> None:
     d = cfg.to_mlx_dict()
     assert d["model"] == "Qwen/Qwen3.5-9B"
     assert d["train"] is True
-    assert d["lora_layers"] == 16
+    assert d["num_layers"] == 16
     assert d["lora_parameters"]["rank"] == 16
     assert d["lora_parameters"]["scale"] == 2.0  # alpha / rank = 32 / 16
     assert d["batch_size"] == 2
@@ -66,7 +66,7 @@ def test_to_mlx_yaml() -> None:
     cfg = TrainingConfig()
     yaml_str = cfg.to_mlx_yaml()
     assert "model:" in yaml_str
-    assert "lora_layers:" in yaml_str
+    assert "num_layers:" in yaml_str
     assert "batch_size:" in yaml_str
 
 

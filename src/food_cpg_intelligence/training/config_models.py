@@ -82,7 +82,7 @@ class TrainingConfig(BaseModel, frozen=True):
             "train": True,
             "data": self.data_dir,
             "seed": self.seed,
-            "lora_layers": self.lora.layers,
+            "num_layers": self.lora.layers,
             "lora_parameters": {
                 "rank": self.lora.rank,
                 "alpha": self.lora.alpha,
@@ -99,6 +99,7 @@ class TrainingConfig(BaseModel, frozen=True):
             "save_every": self.save_every,
             "max_seq_length": self.max_seq_length,
             "grad_checkpoint": self.grad_checkpoint,
+            "grad_accumulation_steps": self.grad_accumulation,
         }
 
     def to_mlx_yaml(self) -> str:
