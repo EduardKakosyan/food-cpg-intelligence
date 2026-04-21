@@ -68,3 +68,12 @@ echo "GGUF:    models/gguf/"
 echo ""
 echo "Download the GGUF for Ollama:"
 echo "  scp gpu-host:/workspace/models/gguf/*.gguf ."
+
+# Safety: auto-shutdown after training to prevent runaway billing
+if [ "${AUTO_SHUTDOWN:-true}" = "true" ]; then
+    echo ""
+    echo "!!! AUTO-SHUTDOWN in 10 minutes to prevent billing overrun !!!"
+    echo "!!! Cancel with: sudo shutdown -c                          !!!"
+    echo "!!! Download your models before then!                      !!!"
+    sudo shutdown -h +10 "Training complete — auto-shutdown to prevent billing"
+fi
