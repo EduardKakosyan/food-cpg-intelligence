@@ -1,0 +1,26 @@
+FROM nvidia/cuda:12.4.0-devel-ubuntu22.04
+
+# System deps
+RUN apt-get update && apt-get install -y \
+    python3.11 python3.11-venv python3-pip git curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set python3.11 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+
+WORKDIR /workspace
+
+# Install Python deps
+COPY scripts/requirements-gpu.txt /workspace/requirements-gpu.txt
+RUN pip install --no-cache-dir -r requirements-gpu.txt
+
+# Copy training code and data
+COPY configs/ /workspace/configs/
+COPY scripts/remote_train.sh /workspace/scripts/remote_train.sh
+COPY scripts/remote_train_unsloth.py /workspace/scripts/remote_train_unsloth.py
+
+# Training data gets mounted or copied separately (too large for image)
+# Mount: -v /path/to/data/training:/workspace/data/training
+
+CMD ["bash"]

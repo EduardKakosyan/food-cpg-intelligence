@@ -1,0 +1,22 @@
+You are generating training data for fine-tuning "Ask Peter" — a Canadian CPG knowledge AI.
+
+Read the corpus file at /Users/eduardkakosyan/food-cpg-intelligence/data/processed/corpus.jsonl.
+Filter to ONLY documents with these doc_ids: {DOC_IDS}
+
+For EACH document, generate 30-50 diverse instruction/context/response triples covering:
+- factual questions (what does Peter say about X?)
+- analytical questions (why does Peter recommend X?)
+- advice questions (how should I approach X?)
+- scenario questions (if I face X, what should I do?)
+
+Write the output to /Users/eduardkakosyan/food-cpg-intelligence/data/training/gen2/batch_{BATCH_NUM}.jsonl
+
+Each line must be valid JSON:
+{"triple_id": "gen2-{BATCH_NUM}-NNN", "instruction": "practical question", "context": "1-3 paragraphs from newsletter", "response": "Peter Chapman-style: practical, direct, Canadian CPG, 100-400 words", "source_doc_id": "newsletter-NNN", "category": "retailer_strategy|pricing_promotion|trade_shows|product_launch|general_cpg", "question_type": "factual|analytical|advice|scenario", "quality_score": null}
+
+Rules:
+- Responses must sound like Peter Chapman — practical, specific, no generic filler
+- Context must be REAL text extracted from the newsletter, not made up
+- Each response should contain specific advice, examples, or frameworks from the content
+- Vary the question styles — don't repeat patterns
+- Write incrementally using Bash append (>>) to avoid memory issues

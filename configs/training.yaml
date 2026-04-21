@@ -1,8 +1,7 @@
 # MLX LoRA Fine-Tuning Configuration (Apple Silicon)
 # Used by: fcpg train finetune --config configs/training.yaml
 
-# Model — Qwen 3.5 9B fits on M4 Pro 48GB (~12-16GB during training)
-# Alternatives: Qwen/Qwen3.5-4B (smaller, ~8GB), google/gemma-3-4b-it
+# Model — Qwen 3.5 9B on M4 Pro 48GB (close other apps, use batch 1 + grad checkpoint)
 model: "Qwen/Qwen3.5-9B"
 
 # LoRA hyperparameters
@@ -10,16 +9,16 @@ lora:
   rank: 16          # capacity vs parameter count tradeoff
   alpha: 32         # standard 2x rank scaling
   dropout: 0.05     # light regularization for small dataset
-  layers: 16        # apply to last 16 transformer layers
+  layers: 8         # fewer layers = less memory (was 16)
 
-# Training
-batch_size: 2       # fits in 48GB; reduce to 1 if OOM
-grad_accumulation: 4  # effective batch = 8
-iters: 600          # ~3.4 epochs over 1,251 examples at eff batch 8
+# Training — memory-conservative for 48GB with 9B model
+batch_size: 1       # reduced from 2 to fit in memory
+grad_accumulation: 8  # effective batch still = 8
+iters: 2000         # ~3.4 epochs over 4,642 examples at eff batch 8
 learning_rate: 2.0e-5  # conservative; sweep 1e-5 to 5e-5
 max_seq_length: 2048
 warmup_steps: 50    # ~8% warmup
-grad_checkpoint: false  # enable if OOM (slower but saves memory)
+grad_checkpoint: true   # saves memory at cost of ~30% slower training
 seed: 42
 
 # Data paths

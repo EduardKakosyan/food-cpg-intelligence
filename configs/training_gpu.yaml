@@ -1,0 +1,36 @@
+# Unsloth QLoRA Training Config — Remote GPU (Lambda.ai / RunPod)
+# Usage: python scripts/remote_train_unsloth.py --config configs/training_gpu.yaml
+
+# Model
+model: "Qwen/Qwen3.5-9B"
+
+# LoRA
+lora:
+  rank: 32          # higher rank for more capacity (GPU has VRAM to spare)
+  alpha: 64
+  dropout: 0.05
+
+# Training
+batch_size: 4       # A100 80GB can handle 4
+grad_accumulation: 4  # effective batch = 16
+num_train_epochs: 3
+learning_rate: 2.0e-4
+max_seq_length: 2048
+warmup_ratio: 0.03
+weight_decay: 0.01
+bf16: true
+seed: 42
+
+# Data (relative to workspace root)
+data_dir: "data/training/formatted"
+
+# Checkpoints
+output_dir: "models/adapters/skufood"
+merged_dir: "models/merged/skufood"
+save_steps: 100
+eval_steps: 100
+logging_steps: 10
+
+# Export
+save_gguf: true
+gguf_dir: "models/gguf"
