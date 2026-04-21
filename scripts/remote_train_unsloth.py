@@ -51,7 +51,7 @@ def main() -> None:
         print("Dry run — config and data validated.")
         return
 
-    # Import heavy deps only when actually training
+    # Import unsloth FIRST (must come before transformers/peft/trl)
     from datasets import Dataset
     from transformers import TrainingArguments
     from trl import SFTTrainer

@@ -76,7 +76,8 @@ if ! python -c "import unsloth" 2>/dev/null; then
         pyyaml \
         scipy \
         scikit-learn \
-        unsloth-zoo
+        unsloth-zoo \
+        torchvision
 
     echo ""
     echo "Dependencies installed."
