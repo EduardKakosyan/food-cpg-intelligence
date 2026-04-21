@@ -16,7 +16,7 @@ grad_accumulation: 4  # effective batch = 16
 num_train_epochs: 3
 learning_rate: 2.0e-4
 max_seq_length: 2048
-warmup_ratio: 0.03
+warmup_steps: 50
 weight_decay: 0.01
 bf16: true
 seed: 42

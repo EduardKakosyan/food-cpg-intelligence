@@ -32,7 +32,7 @@ def main() -> None:
     print(f"Model: {config['model']}")
     print(f"LoRA rank: {config['lora']['rank']}, alpha: {config['lora']['alpha']}")
     print(f"Batch size: {config['batch_size']}, Grad accum: {config['grad_accumulation']}")
-    print(f"Iters/Epochs: {config.get('num_train_epochs', config.get('iters', 3))}")
+    print(f"Epochs: {config.get('num_train_epochs', 3)}")
 
     # Check data exists
     data_dir = Path(config.get("data_dir", "data/training/formatted"))
@@ -51,10 +51,9 @@ def main() -> None:
         print("Dry run — config and data validated.")
         return
 
-    # Import unsloth FIRST (must come before transformers/peft/trl)
+    # Import unsloth FIRST — must come before transformers/peft/trl
     from datasets import Dataset
-    from transformers import TrainingArguments
-    from trl import SFTTrainer
+    from trl import SFTConfig, SFTTrainer
     from unsloth import FastLanguageModel
 
     # Load model
@@ -98,21 +97,17 @@ def main() -> None:
 
     print(f"Loaded: {len(train_dataset)} train, {len(val_dataset) if val_dataset else 0} val")
 
-    # Training args
+    # Training config — uses SFTConfig (not TrainingArguments)
     output_dir = config.get("output_dir", "models/adapters/skufood")
-    num_epochs = config.get("num_train_epochs", 3)
-    batch_size = config.get("batch_size", 4)
-    grad_accum = config.get("grad_accumulation", 4)
-    lr = config.get("learning_rate", 2e-4)
 
-    training_args = TrainingArguments(
+    sft_config = SFTConfig(
         output_dir=output_dir,
-        num_train_epochs=num_epochs,
-        per_device_train_batch_size=batch_size,
-        gradient_accumulation_steps=grad_accum,
-        learning_rate=lr,
+        num_train_epochs=config.get("num_train_epochs", 3),
+        per_device_train_batch_size=config.get("batch_size", 4),
+        gradient_accumulation_steps=config.get("grad_accumulation", 4),
+        learning_rate=config.get("learning_rate", 2e-4),
         lr_scheduler_type="cosine",
-        warmup_ratio=config.get("warmup_ratio", 0.03),
+        warmup_steps=config.get("warmup_steps", 50),
         weight_decay=config.get("weight_decay", 0.01),
         fp16=not config.get("bf16", True),
         bf16=config.get("bf16", True),
@@ -123,16 +118,15 @@ def main() -> None:
         save_total_limit=5,
         report_to="none",
         seed=config.get("seed", 42),
+        max_seq_length=config.get("max_seq_length", 2048),
     )
 
-    # Train
+    # Train — current TRL API: model + args + dataset + peft_config
     trainer = SFTTrainer(
         model=model,
-        processing_class=tokenizer,
+        args=sft_config,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        args=training_args,
-        max_seq_length=config.get("max_seq_length", 2048),
     )
 
     print("\nStarting training...")
