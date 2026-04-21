@@ -1,15 +1,9 @@
-# GPU training requirements for Lambda.ai / RunPod / Vast.ai
-# Install: pip install -r scripts/requirements-gpu.txt
-torch>=2.4
-transformers>=4.44
-datasets>=2.20
-accelerate>=0.33
-peft>=0.12
-trl>=0.9
-bitsandbytes>=0.43
-unsloth>=2024.8
+# GPU training requirements — use Unsloth's official install
+# On Lambda.ai / RunPod with A100/H100:
+#   pip install "unsloth[cu124-ampere] @ git+https://github.com/unslothai/unsloth.git"
+#   pip install -r scripts/requirements-gpu.txt
+#
+# The unsloth install above handles torch, transformers, peft, trl, bitsandbytes
+# These are the additional deps only:
 pyyaml>=6.0
-structlog>=24.4
-pydantic>=2.8
-pydantic-settings>=2.4
-tqdm>=4.66
+datasets>=2.20

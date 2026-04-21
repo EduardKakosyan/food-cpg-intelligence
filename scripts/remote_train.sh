@@ -2,7 +2,7 @@
 # Remote GPU training script for Lambda.ai / RunPod / Vast.ai
 #
 # Quick start (on the remote GPU instance):
-#   1. Upload training data: scp -r data/training/formatted user@gpu-host:/workspace/data/training/
+#   1. Upload training data: scp -r data/training/formatted user@gpu-host:/home/ubuntu/
 #   2. SSH into the instance
 #   3. Run: bash scripts/remote_train.sh
 #
@@ -17,7 +17,6 @@ if [ "${1:-}" = "--package" ]; then
     tar czf skufood-training.tar.gz \
         configs/training_gpu.yaml \
         scripts/remote_train_unsloth.py \
-        scripts/requirements-gpu.txt \
         scripts/remote_train.sh \
         data/training/formatted/train.jsonl \
         data/training/formatted/val.jsonl \
@@ -28,35 +27,70 @@ if [ "${1:-}" = "--package" ]; then
     echo "Created: skufood-training.tar.gz ($SIZE)"
     echo ""
     echo "Upload to your GPU instance and run:"
-    echo "  tar xzf skufood-training.tar.gz"
-    echo "  pip install -r scripts/requirements-gpu.txt"
-    echo "  python scripts/remote_train_unsloth.py"
+    echo "  scp skufood-training.tar.gz ubuntu@<IP>:/home/ubuntu/"
+    echo "  ssh ubuntu@<IP>"
+    echo "  tar xzf skufood-training.tar.gz && bash scripts/remote_train.sh"
     exit 0
 fi
 
 echo "=== SKUFood Remote GPU Training ==="
 echo ""
 
-# Check CUDA
+# ──── Step 1: Check GPU ────
+echo "Checking GPU..."
 if ! command -v nvidia-smi &> /dev/null; then
-    echo "WARNING: nvidia-smi not found. Are you on a GPU instance?"
+    echo "ERROR: nvidia-smi not found. This script requires an NVIDIA GPU instance."
+    exit 1
 fi
-nvidia-smi 2>/dev/null || true
-
-# Install deps if not already
-if ! python -c "import unsloth" 2>/dev/null; then
-    echo ""
-    echo "Installing dependencies..."
-    pip install -r scripts/requirements-gpu.txt
-fi
-
-# Validate
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 echo ""
+
+# ──── Step 2: Create clean venv (avoids ALL system package conflicts) ────
+VENV_DIR="$HOME/skufood-venv"
+if [ ! -f "$VENV_DIR/bin/activate" ]; then
+    echo "Creating clean Python venv at $VENV_DIR..."
+    python3 -m venv "$VENV_DIR" --clear
+fi
+source "$VENV_DIR/bin/activate"
+echo "Using venv: $(which python) ($(python --version))"
+echo ""
+
+# ──── Step 3: Install ALL dependencies in one shot ────
+# Check if unsloth is already installed
+if ! python -c "import unsloth" 2>/dev/null; then
+    echo "Installing dependencies (this takes 3-5 minutes)..."
+    echo ""
+
+    # Unsloth's official install — handles torch, triton, xformers
+    pip install --upgrade pip
+    pip install "unsloth[cu124-ampere] @ git+https://github.com/unslothai/unsloth.git"
+
+    # Everything else the training script needs
+    pip install \
+        transformers \
+        peft \
+        trl \
+        accelerate \
+        bitsandbytes \
+        datasets \
+        pyyaml \
+        scipy \
+        scikit-learn \
+        unsloth-zoo
+
+    echo ""
+    echo "Dependencies installed."
+else
+    echo "Dependencies already installed, skipping."
+fi
+echo ""
+
+# ──── Step 4: Validate ────
 echo "Validating config and data..."
 python scripts/remote_train_unsloth.py --dry-run
-
-# Train
 echo ""
+
+# ──── Step 5: Train ────
 echo "Starting training..."
 python scripts/remote_train_unsloth.py --config configs/training_gpu.yaml
 
@@ -67,7 +101,7 @@ echo "Merged:  models/merged/skufood/"
 echo "GGUF:    models/gguf/"
 echo ""
 echo "Download the GGUF for Ollama:"
-echo "  scp gpu-host:/workspace/models/gguf/*.gguf ."
+echo "  scp -i <key.pem> ubuntu@<IP>:/home/ubuntu/models/gguf/*.gguf ."
 
 # Safety: auto-shutdown after training to prevent runaway billing
 if [ "${AUTO_SHUTDOWN:-true}" = "true" ]; then
