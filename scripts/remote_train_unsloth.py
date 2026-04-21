@@ -128,11 +128,10 @@ def main() -> None:
     # Train
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         args=training_args,
-        dataset_text_field="text",
         max_seq_length=config.get("max_seq_length", 2048),
     )
 
