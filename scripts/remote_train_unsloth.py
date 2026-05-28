@@ -5,48 +5,51 @@ https://unsloth.ai/docs/models/qwen3.5/fine-tune
 
 Usage:
     python scripts/remote_train_unsloth.py --config configs/training_gpu.yaml
-    python scripts/remote_train_unsloth.py  # uses default config
+    python scripts/remote_train_unsloth.py --dry-run  # validate config only (no unsloth)
+
+The dry-run path is intentionally kept free of unsloth/trl imports so you can
+validate the YAML + data wiring locally on machines without CUDA (M-series Macs,
+CI runners). The heavy imports happen inside `_train()` and only on the GPU.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import warnings
 from pathlib import Path
+from typing import Any
 
-# Suppress bitsandbytes FutureWarning about _check_is_size (torch deprecation, harmless)
+import yaml
+
+# bitsandbytes emits a deprecation warning from a torch internal that's harmless;
+# silence it so the dry-run output is clean. Applies to real training too.
 warnings.filterwarnings("ignore", message=".*_check_is_size.*", category=FutureWarning)
 
-# Import unsloth BEFORE any other ML library (trl, transformers, peft)
-# to ensure all optimizations are applied.
-import unsloth  # noqa: F401, E402
-import yaml  # noqa: E402  -- must follow unsloth import
+
+def _load_config(path: str) -> dict[str, Any]:
+    with open(path) as f:
+        result: dict[str, Any] = yaml.safe_load(f)
+    return result
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Unsloth QLoRA fine-tuning")
-    parser.add_argument(
-        "--config",
-        default="configs/training_gpu.yaml",
-        help="Training config YAML path",
+def _print_config_summary(config: dict[str, Any]) -> None:
+    """Echo the loaded config for run reproducibility / dry-run output."""
+    lora = config.get("lora", {})
+    print(f"Model: {config.get('model')}")
+    print(f"LoRA rank: {lora.get('rank')}, alpha: {lora.get('alpha')}")
+    print(
+        f"LoRA target_modules: "
+        f"{lora.get('target_modules', ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'])}"
     )
-    parser.add_argument("--dry-run", action="store_true", help="Validate only")
-    args = parser.parse_args()
-
-    # Load config
-    with open(args.config) as f:
-        config = yaml.safe_load(f)
-
-    print(f"Model: {config['model']}")
-    print(f"LoRA rank: {config['lora']['rank']}, alpha: {config['lora']['alpha']}")
-    print(f"Batch size: {config['batch_size']}, Grad accum: {config['grad_accumulation']}")
+    print(f"Batch size: {config.get('batch_size')}, Grad accum: {config.get('grad_accumulation')}")
     print(f"Epochs: {config.get('num_train_epochs', 3)}")
     print(f"Learning rate: {config.get('learning_rate', 2e-4)}")
-    print(f"NEFTune alpha: {config.get('neftune_noise_alpha', None)}")
+    print(f"NEFTune alpha: {config.get('neftune_noise_alpha')}")
 
-    # Check data exists
+
+def _validate_data_paths(config: dict[str, Any]) -> tuple[Path, Path | None]:
+    """Confirm train.jsonl exists at the configured path; return (train, val)."""
     data_dir = Path(config.get("data_dir", "data/training/formatted"))
     train_file = data_dir / "train.jsonl"
     val_file = data_dir / "val.jsonl"
@@ -57,13 +60,16 @@ def main() -> None:
 
     train_count = sum(1 for _ in train_file.open())
     val_count = sum(1 for _ in val_file.open()) if val_file.exists() else 0
-    print(f"Data: {train_count} train, {val_count} val")
+    print(f"Data: {train_count} train, {val_count} val ({data_dir})")
+    return train_file, val_file if val_file.exists() else None
 
-    if args.dry_run:
-        print("Dry run — config and data validated.")
-        return
 
-    # unsloth already imported at module top level (before trl/transformers/peft)
+def _train(config: dict[str, Any], train_file: Path, val_file: Path | None) -> None:
+    """Actual training — imports unsloth/trl, requires CUDA. Never runs in dry-run."""
+    # Import order matters: unsloth must come before trl / transformers / peft.
+    import json
+
+    import unsloth  # noqa: F401  (must precede TRL imports for optimizations)
     from datasets import Dataset
     from trl import SFTConfig, SFTTrainer
     from unsloth import FastLanguageModel, is_bfloat16_supported
@@ -71,7 +77,6 @@ def main() -> None:
 
     max_seq_length = config.get("max_seq_length", 2048)
 
-    # === Load model ===
     print(f"\nLoading {config['model']}...")
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=config["model"],
@@ -79,15 +84,11 @@ def main() -> None:
         load_in_4bit=True,
     )
 
-    # === Apply chat template (maps <|im_end|> to EOS properly) ===
-    tokenizer = get_chat_template(
-        tokenizer,
-        chat_template="chatml",
-    )
+    # Maps <|im_end|> to EOS — critical per Run 001 retrospective.
+    tokenizer = get_chat_template(tokenizer, chat_template="chatml")
 
-    # === Apply LoRA ===
     lora_cfg = config["lora"]
-    # Default: all linear (Run 001/002 recipe). Voice transfer (Run 003+) uses
+    # Default: all linear (Run 001/002). Voice transfer (Run 003+) uses
     # attention-only via configs/training_gpu.yaml -> lora.target_modules.
     target_modules = lora_cfg.get(
         "target_modules",
@@ -98,25 +99,20 @@ def main() -> None:
         model,
         r=lora_cfg["rank"],
         lora_alpha=lora_cfg["alpha"],
-        lora_dropout=0,  # Must be 0 for Unsloth fast patching
+        lora_dropout=0,  # must be 0 for Unsloth fast patching
         target_modules=target_modules,
         bias="none",
         use_gradient_checkpointing="unsloth",
     )
 
-    # === Load dataset ===
     def load_jsonl(path: Path) -> Dataset:
-        data = []
-        with path.open() as f:
-            for line in f:
-                data.append(json.loads(line.strip()))
+        data = [json.loads(line.strip()) for line in path.open() if line.strip()]
         return Dataset.from_list(data)
 
     train_dataset = load_jsonl(train_file)
-    val_dataset = load_jsonl(val_file) if val_file.exists() else None
+    val_dataset = load_jsonl(val_file) if val_file else None
     print(f"Loaded: {len(train_dataset)} train, {len(val_dataset) if val_dataset else 0} val")
 
-    # === Training ===
     output_dir = config.get("output_dir", "models/adapters/skufood")
 
     sft_args = SFTConfig(
@@ -158,12 +154,11 @@ def main() -> None:
     print("\nStarting training...")
     trainer.train()
 
-    # === Save adapter ===
     print(f"\nSaving adapter to {output_dir}...")
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
-    # === Save GGUF (must happen on GPU, not locally) ===
+    # GGUF must happen on GPU; fall back to merged 16-bit if quantize hangs.
     gguf_dir = config.get("gguf_dir", "models/gguf")
     print(f"Saving GGUF to {gguf_dir}... (this installs llama.cpp if needed)")
     import subprocess
@@ -185,7 +180,32 @@ def main() -> None:
     print("\nTraining complete!")
     print("\nDownload your model:")
     print(f"  scp -r user@<IP>:{gguf_dir}/ .")
-    print("  # Then: ollama create skufood-9b -f Modelfile")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Unsloth QLoRA fine-tuning")
+    parser.add_argument(
+        "--config",
+        default="configs/training_gpu.yaml",
+        help="Training config YAML path",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate config + data without loading unsloth/CUDA. Safe to run on Mac.",
+    )
+    args = parser.parse_args()
+
+    config = _load_config(args.config)
+    _print_config_summary(config)
+
+    train_file, val_file = _validate_data_paths(config)
+
+    if args.dry_run:
+        print("\nDry run — config and data validated (no unsloth imported).")
+        return
+
+    _train(config, train_file, val_file)
 
 
 if __name__ == "__main__":
