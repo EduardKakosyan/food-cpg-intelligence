@@ -13,9 +13,16 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import warnings
 from pathlib import Path
 
-import yaml
+# Suppress bitsandbytes FutureWarning about _check_is_size (torch deprecation, harmless)
+warnings.filterwarnings("ignore", message=".*_check_is_size.*", category=FutureWarning)
+
+# Import unsloth BEFORE any other ML library (trl, transformers, peft)
+# to ensure all optimizations are applied.
+import unsloth  # noqa: F401, E402
+import yaml  # noqa: E402  -- must follow unsloth import
 
 
 def main() -> None:
@@ -36,6 +43,8 @@ def main() -> None:
     print(f"LoRA rank: {config['lora']['rank']}, alpha: {config['lora']['alpha']}")
     print(f"Batch size: {config['batch_size']}, Grad accum: {config['grad_accumulation']}")
     print(f"Epochs: {config.get('num_train_epochs', 3)}")
+    print(f"Learning rate: {config.get('learning_rate', 2e-4)}")
+    print(f"NEFTune alpha: {config.get('neftune_noise_alpha', None)}")
 
     # Check data exists
     data_dir = Path(config.get("data_dir", "data/training/formatted"))
@@ -54,7 +63,7 @@ def main() -> None:
         print("Dry run — config and data validated.")
         return
 
-    # === Import unsloth FIRST ===
+    # unsloth already imported at module top level (before trl/transformers/peft)
     from datasets import Dataset
     from trl import SFTConfig, SFTTrainer
     from unsloth import FastLanguageModel, is_bfloat16_supported
@@ -78,20 +87,19 @@ def main() -> None:
 
     # === Apply LoRA ===
     lora_cfg = config["lora"]
+    # Default: all linear (Run 001/002 recipe). Voice transfer (Run 003+) uses
+    # attention-only via configs/training_gpu.yaml -> lora.target_modules.
+    target_modules = lora_cfg.get(
+        "target_modules",
+        ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    )
+    print(f"LoRA target_modules: {target_modules}")
     model = FastLanguageModel.get_peft_model(
         model,
         r=lora_cfg["rank"],
         lora_alpha=lora_cfg["alpha"],
         lora_dropout=0,  # Must be 0 for Unsloth fast patching
-        target_modules=[
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
-        ],
+        target_modules=target_modules,
         bias="none",
         use_gradient_checkpointing="unsloth",
     )
@@ -111,35 +119,40 @@ def main() -> None:
     # === Training ===
     output_dir = config.get("output_dir", "models/adapters/skufood")
 
-    trainer = SFTTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
+    sft_args = SFTConfig(
+        output_dir=output_dir,
         dataset_text_field="text",
         max_seq_length=max_seq_length,
         dataset_num_proc=2,
         packing=False,
-        args=SFTConfig(
-            output_dir=output_dir,
-            num_train_epochs=config.get("num_train_epochs", 3),
-            per_device_train_batch_size=config.get("batch_size", 4),
-            gradient_accumulation_steps=config.get("grad_accumulation", 4),
-            learning_rate=config.get("learning_rate", 2e-4),
-            lr_scheduler_type="cosine",
-            warmup_steps=config.get("warmup_steps", 50),
-            weight_decay=config.get("weight_decay", 0.01),
-            fp16=not is_bfloat16_supported(),
-            bf16=is_bfloat16_supported(),
-            logging_steps=config.get("logging_steps", 10),
-            save_steps=config.get("save_steps", 100),
-            eval_strategy="steps" if val_dataset else "no",
-            eval_steps=config.get("eval_steps", 100) if val_dataset else None,
-            save_total_limit=5,
-            optim="adamw_8bit",
-            report_to="none",
-            seed=config.get("seed", 42),
-        ),
+        num_train_epochs=config.get("num_train_epochs", 3),
+        per_device_train_batch_size=config.get("batch_size", 4),
+        gradient_accumulation_steps=config.get("grad_accumulation", 4),
+        learning_rate=config.get("learning_rate", 2e-4),
+        lr_scheduler_type="cosine",
+        warmup_steps=config.get("warmup_steps", 50),
+        weight_decay=config.get("weight_decay", 0.01),
+        fp16=not is_bfloat16_supported(),
+        bf16=is_bfloat16_supported(),
+        logging_steps=config.get("logging_steps", 10),
+        save_steps=config.get("save_steps", 100),
+        eval_strategy="steps" if val_dataset else "no",
+        eval_steps=config.get("eval_steps", 100) if val_dataset else None,
+        save_total_limit=5,
+        optim="adamw_8bit",
+        report_to="none",
+        seed=config.get("seed", 42),
+        # NEFTune alpha — input-embedding noise for style transfer
+        # (Jain et al., arXiv:2310.05914). Only applies when value is non-null.
+        neftune_noise_alpha=config.get("neftune_noise_alpha"),
+    )
+
+    trainer = SFTTrainer(
+        model=model,
+        processing_class=tokenizer,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+        args=sft_args,
     )
 
     print("\nStarting training...")

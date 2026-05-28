@@ -1,36 +1,52 @@
-# Unsloth QLoRA Training Config — Remote GPU (Lambda.ai / RunPod)
+# Unsloth QLoRA Training Config — Phase B voice fine-tune (Run 003)
+# Recipe source: docs/research-voice-rag-pivot.md §4 ("LoRA Learns Less and
+# Forgets Less" / Geva et al. MLP-as-knowledge / Hong et al. ORPO).
+#
+# This config is intentionally *less aggressive* than Run 001:
+#   - rank 16 vs 32, alpha 16 vs 64 (lower effective scale)
+#   - attention-only LoRA (exclude MLP) — preserves world knowledge
+#   - LR 5e-5 vs 2e-4 — gentler updates
+#   - NEFTune α=5 — input noise as a style-transfer regularizer
+#   - 2 epochs — Run 001 plateaued at epoch 1.7
+#
 # Usage: python scripts/remote_train_unsloth.py --config configs/training_gpu.yaml
 
 # Model
 model: "Qwen/Qwen3.5-9B"
 
-# LoRA
+# LoRA — voice transfer recipe
 lora:
-  rank: 32          # higher rank for more capacity (GPU has VRAM to spare)
-  alpha: 64
+  rank: 16            # smaller capacity = less knowledge overwrite
+  alpha: 16           # alpha == rank, not 2x
   dropout: 0.05
+  target_modules:     # attention-only; MLPs hold factual recall per Geva et al.
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
 
 # Training
-batch_size: 4       # A100 80GB can handle 4
+batch_size: 4         # A100 80GB can handle 4
 grad_accumulation: 4  # effective batch = 16
-num_train_epochs: 3
-learning_rate: 2.0e-4
+num_train_epochs: 2
+learning_rate: 5.0e-5
 max_seq_length: 2048
 warmup_steps: 50
 weight_decay: 0.01
 bf16: true
 seed: 42
+neftune_noise_alpha: 5  # input-embedding noise for style transfer (Jain et al.)
 
 # Data (relative to workspace root)
-data_dir: "data/training/formatted"
+data_dir: "data/training/sft_mvp"
 
-# Checkpoints
-output_dir: "models/adapters/skufood"
-merged_dir: "models/merged/skufood"
+# Checkpoints — new namespace to avoid overwriting Run 001 / 002 artifacts
+output_dir: "models/adapters/skufood-voice-v1"
+merged_dir: "models/merged/skufood-voice-v1"
 save_steps: 100
 eval_steps: 100
 logging_steps: 10
 
 # Export
 save_gguf: true
-gguf_dir: "models/gguf"
+gguf_dir: "models/gguf/skufood-voice-v1"
