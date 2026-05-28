@@ -100,6 +100,10 @@ packages = ["src/food_cpg_intelligence"]
 target-version = "py311"
 line-length = 100
 src = ["src", "tests"]
+extend-exclude = [
+    # Vendored from llama.cpp upstream — do not modify (see Run 001 retrospective).
+    "scripts/convert_hf_to_gguf.py",
+]
 
 [tool.ruff.lint]
 select = [

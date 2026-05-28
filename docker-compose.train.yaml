@@ -1,0 +1,27 @@
+# SKUFood Training — Docker Compose
+#
+# Test locally:    docker compose -f docker-compose.train.yaml run train --dry-run
+# Train on GPU:    docker compose -f docker-compose.train.yaml up
+# Custom config:   docker compose -f docker-compose.train.yaml run train --config configs/training_gpu.yaml
+
+services:
+  train:
+    build:
+      context: .
+      dockerfile: docker/training/Dockerfile
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      # Mount data and model output dirs so results persist outside container
+      - ./data:/workspace/data
+      - ./models:/workspace/models
+      # Mount configs so you can iterate without rebuilding
+      - ./configs:/workspace/configs
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    shm_size: "16gb"  # needed for DataLoader workers

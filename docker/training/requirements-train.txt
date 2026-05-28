@@ -1,0 +1,23 @@
+# Pinned training dependencies for SKUFood QLoRA
+# These MUST stay within unsloth's compatibility ranges.
+# unsloth 2026.4.6 requires: transformers<=5.5.0, datasets<4.4.0, torch<2.11.0
+#
+# DO NOT pip install --upgrade these individually. Let unsloth manage torch/transformers.
+# Only add packages here that unsloth does NOT install.
+
+# --- Managed by unsloth (do NOT override) ---
+# torch, transformers, datasets, xformers — installed by unsloth
+
+# --- Training extras (must respect unsloth's version caps) ---
+peft>=0.15.0
+trl>=0.18.0
+accelerate>=1.6.0
+bitsandbytes>=0.45.0
+pyyaml>=6.0
+scipy>=1.11.0
+scikit-learn>=1.3.0
+torchvision
+openpyxl
+gguf
+# flash-attn, causal-conv1d — installed separately in Dockerfile (need torch headers at build time)
+# flash-linear-attention — installed from git in Dockerfile
