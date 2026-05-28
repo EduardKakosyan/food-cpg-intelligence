@@ -167,12 +167,26 @@ if [ "$MODE" = "--bare" ]; then
 
     echo ""
     echo "=== Training complete ==="
-    echo "Download: scp -r ubuntu@<IP>:~/models/gguf/ ."
+
+    # Post-training FAQ inference on the same instance (uses warm GPU, the
+    # merged model already on disk). Skip with SKIP_INFERENCE=true.
+    if [ "${SKIP_INFERENCE:-false}" != "true" ]; then
+        echo ""
+        echo "=== Running post-training FAQ inference ==="
+        python scripts/remote_inference.py --config configs/training_gpu.yaml || \
+            echo "WARNING: inference failed, but training artifacts are intact"
+        echo ""
+        echo "=== Inference complete ==="
+    fi
+
+    echo "Download artifacts before shutdown:"
+    echo "  scp -r ubuntu@<IP>:~/food-cpg-intelligence/models/adapters/ ."
+    echo "  scp -r ubuntu@<IP>:~/food-cpg-intelligence/data/evaluation/faq_responses_*.jsonl ."
 
     if [ "${AUTO_SHUTDOWN:-true}" = "true" ]; then
         echo ""
-        echo "!!! AUTO-SHUTDOWN in 10 minutes !!!"
-        sudo shutdown -h +10 "Training complete — auto-shutdown"
+        echo "!!! AUTO-SHUTDOWN in 15 minutes !!!"
+        sudo shutdown -h +15 "Training + inference complete — auto-shutdown"
     fi
     exit 0
 fi

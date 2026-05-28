@@ -1,29 +1,40 @@
-# Unsloth QLoRA Training Config — Phase B voice fine-tune (Run 003)
-# Recipe source: docs/research-voice-rag-pivot.md §4 ("LoRA Learns Less and
-# Forgets Less" / Geva et al. MLP-as-knowledge / Hong et al. ORPO).
+# Unsloth QLoRA Training Config — Phase B Run 004 (voice transfer round 2)
 #
-# This config is intentionally *less aggressive* than Run 001:
-#   - rank 16 vs 32, alpha 16 vs 64 (lower effective scale)
-#   - attention-only LoRA (exclude MLP) — preserves world knowledge
-#   - LR 5e-5 vs 2e-4 — gentler updates
-#   - NEFTune α=5 — input noise as a style-transfer regularizer
-#   - 2 epochs — Run 001 plateaued at epoch 1.7
+# Run 003 produced coherent Peter voice but:
+#   1. Markdown formatting leaked through (### headers, **bold**) - LoRA too weak
+#      to suppress base model's default behavior
+#   2. Unsloth saved LoRA on only 8 of 32 layers when given attention-only
+#      target_modules — sparser than intended (~4M trainable params)
+#
+# Run 004 increases LoRA capacity to overcome both issues:
+#   - rank/alpha 32/32 (was 16/16) — 4x more LoRA capacity per matrix
+#   - target_modules: all linear including MLP — full layer coverage
+#   - LR 5e-5 — unchanged, gentle for voice transfer
+#   - NEFTune α=5 — unchanged
+#   - 2 epochs — Run 003 loss curve was healthy (no overfit signal)
+#
+# Trade-off: more knowledge overwrite risk (MLP is where facts live per Geva
+# et al.). Run 003 was the conservative bookend; Run 004 trades some
+# knowledge preservation for stronger style transfer.
 #
 # Usage: python scripts/remote_train_unsloth.py --config configs/training_gpu.yaml
 
 # Model
 model: "Qwen/Qwen3.5-9B"
 
-# LoRA — voice transfer recipe
+# LoRA — Run 004 stronger voice recipe
 lora:
-  rank: 16            # smaller capacity = less knowledge overwrite
-  alpha: 16           # alpha == rank, not 2x
+  rank: 32            # 2x of Run 003 — more LoRA capacity to override base behavior
+  alpha: 32           # alpha == rank
   dropout: 0.05
-  target_modules:     # attention-only; MLPs hold factual recall per Geva et al.
+  target_modules:     # all linear — MLP coverage to fully shape output style
     - q_proj
     - k_proj
     - v_proj
     - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
 
 # Training
 batch_size: 4         # A100 80GB can handle 4
@@ -40,13 +51,13 @@ neftune_noise_alpha: 5  # input-embedding noise for style transfer (Jain et al.)
 # Data (relative to workspace root)
 data_dir: "data/training/sft_mvp"
 
-# Checkpoints — new namespace to avoid overwriting Run 001 / 002 artifacts
-output_dir: "models/adapters/skufood-voice-v1"
-merged_dir: "models/merged/skufood-voice-v1"
+# Checkpoints — voice-v2 namespace for Run 004
+output_dir: "models/adapters/skufood-voice-v2"
+merged_dir: "models/merged/skufood-voice-v2"
 save_steps: 100
 eval_steps: 100
 logging_steps: 10
 
 # Export
 save_gguf: true
-gguf_dir: "models/gguf/skufood-voice-v1"
+gguf_dir: "models/gguf/skufood-voice-v2"
