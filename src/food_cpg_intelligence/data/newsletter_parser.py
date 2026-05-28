@@ -19,17 +19,24 @@ if TYPE_CHECKING:
 
 logger = structlog.stdlib.get_logger(__name__)
 
-_BLOG_NUMBER_RE = re.compile(r"skufood\s*blog\s*(\d+)", re.IGNORECASE)
+_BLOG_NUMBER_RES = (
+    re.compile(r"skufood\s*blog\s*(\d+)", re.IGNORECASE),
+    # Co-authored / cross-posted content: SKUFood140thegrower, GPSNewsletter58thegrower,
+    # gpsnewsletter135thegrower — also Peter prose, distributed via The Grower magazine.
+    re.compile(r"(?:skufood|gps\s*newsletter)\s*(\d+)\s*thegrower", re.IGNORECASE),
+)
 
 
 def _extract_blog_number(filename: str) -> int:
     """Extract the blog number from a newsletter filename.
 
-    Handles inconsistent casing: SKUFoodblog100.docx, SKUfoodblog42.docx, etc.
+    Handles inconsistent casing (SKUFoodblog100.docx, SKUfoodblog42.docx) and
+    cross-channel content (SKUFood140thegrower.docx, GPSNewsletter58thegrower.docx).
     """
-    match = _BLOG_NUMBER_RE.search(filename)
-    if match:
-        return int(match.group(1))
+    for pattern in _BLOG_NUMBER_RES:
+        match = pattern.search(filename)
+        if match:
+            return int(match.group(1))
     raise ValueError(f"Cannot extract blog number from filename: {filename}")
 
 
@@ -73,6 +80,11 @@ def _flush_section(
     )
 
 
+def _detect_channel(filename: str) -> str:
+    """Return 'thegrower' for cross-posted Grower magazine variants, else 'skufood'."""
+    return "thegrower" if "thegrower" in filename.lower() else "skufood"
+
+
 def parse_newsletter(path: Path) -> Newsletter:
     """Parse a single .docx newsletter into a Newsletter object.
 
@@ -86,13 +98,18 @@ def parse_newsletter(path: Path) -> Newsletter:
         ValueError: If the blog number cannot be extracted from the filename.
     """
     blog_number = _extract_blog_number(path.stem)
+    channel = _detect_channel(path.stem)
     doc = Document(str(path))
 
     paragraphs: list[Paragraph] = [p for p in doc.paragraphs if p.text.strip()]
 
     if not paragraphs:
         return Newsletter(
-            blog_number=blog_number, title="", source_file=path.name, raw_word_count=0
+            blog_number=blog_number,
+            title="",
+            source_file=path.name,
+            raw_word_count=0,
+            channel=channel,  # type: ignore[arg-type]
         )
 
     title = ""
@@ -130,6 +147,7 @@ def parse_newsletter(path: Path) -> Newsletter:
         sections=tuple(sections),
         raw_word_count=word_count,
         source_file=path.name,
+        channel=channel,  # type: ignore[arg-type]
     )
 
 

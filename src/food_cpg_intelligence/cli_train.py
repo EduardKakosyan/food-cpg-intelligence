@@ -299,3 +299,55 @@ def eval_checkpoints(
         ckpt_dir, settings.base_model, gold_path, sample_size=sample_size
     )
     typer.echo(format_eval_table(results))
+
+
+@app.command()
+def build_mvp_dataset(
+    corpus_path: str = typer.Option("", help="Path to corpus.jsonl. Defaults to processed_dir."),
+    gold_standard_path: str = typer.Option(
+        "", help="Path to gold_standard_v1.json (contamination check)."
+    ),
+    faq_pairs_path: str = typer.Option(
+        "", help="Path to faq_pairs.jsonl (staged as inference smoke-test)."
+    ),
+    output_dir: str = typer.Option(
+        "", help="Output directory. Defaults to <training_dir>/sft_mvp."
+    ),
+    target_tokens: int = typer.Option(1200, help="Continuation chunk target token count."),
+    min_tokens: int = typer.Option(256, help="Continuation chunk minimum token count."),
+    max_tokens: int = typer.Option(2048, help="Continuation chunk maximum token count."),
+    train_fraction: float = typer.Option(0.9, help="Train/val split ratio."),
+) -> None:
+    """Build the MVP voice-fine-tune dataset: continuation triples -> ChatML JSONL.
+
+    End-to-end pipeline that scrubs entities, chunks Peter prose into 512-2048
+    token segments, runs the quality pipeline (length/dedup/contamination/balance),
+    and emits Qwen ChatML train/val JSONL plus an FAQ inference smoke set.
+    """
+    configure_logging()
+    from food_cpg_intelligence.training.continuation import ChunkConfig
+    from food_cpg_intelligence.training.mvp_builder import BuildConfig
+    from food_cpg_intelligence.training.mvp_builder import build_mvp_dataset as _run
+
+    processed = settings.resolve_path(settings.processed_dir)
+    evaluation = settings.resolve_path(settings.evaluation_dir)
+    training = settings.resolve_path(settings.training_dir)
+
+    cfg = BuildConfig(
+        corpus_path=Path(corpus_path) if corpus_path else processed / "corpus.jsonl",
+        gold_standard_path=(
+            Path(gold_standard_path) if gold_standard_path else evaluation / "gold_standard_v1.json"
+        ),
+        faq_pairs_path=(Path(faq_pairs_path) if faq_pairs_path else training / "faq_pairs.jsonl"),
+        output_dir=Path(output_dir) if output_dir else training / "sft_mvp",
+        chunk=ChunkConfig(
+            target_tokens=target_tokens,
+            min_tokens=min_tokens,
+            max_tokens=max_tokens,
+        ),
+        train_fraction=train_fraction,
+    )
+    outputs = _run(cfg)
+    typer.echo(f"Wrote:\n  train: {outputs['train']}\n  val:   {outputs['val']}")
+    typer.echo(f"  FAQ smoke set: {outputs['inference_test_faq']}")
+    typer.echo(f"  build report:  {outputs['report']}")

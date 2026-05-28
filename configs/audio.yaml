@@ -1,0 +1,66 @@
+# Audio Ingestion Configuration
+# Used by: fcpg audio process-url --config configs/audio.yaml
+
+# ASR — WhisperX wrapping faster-whisper
+asr:
+  model: "large-v3-turbo"    # alternatives: "large-v3" (best WER), "distil-large-v3"
+  compute_type: "auto"        # "float16" on GPU, "int8" on CPU, "auto" picks per device
+  device: "auto"              # "cuda" | "mps" | "cpu" | "auto"
+  language: "en"
+  vad_onset: 0.500
+  batch_size: 16              # ASR batch on GPU; clamped to 4 on CPU/MPS
+  align_model: null           # null = whisperx default (wav2vec2-large-960h)
+
+# Diarization — pyannote.audio 3.1 (HF token required, model is gated)
+diarization:
+  model: "pyannote/speaker-diarization-3.1"
+  device: "cpu"               # pyannote does not support MPS; force CPU on Apple Silicon
+  min_speakers: 1
+  max_speakers: 6
+
+# Speaker identification — match against Peter reference clip
+speaker_id:
+  embedding_model: "speechbrain/spkrec-ecapa-voxceleb"
+  reference_clip: "data/raw/audio/peter_reference.wav"
+  min_clip_seconds_for_centroid: 3.0   # only use turns >=3s when computing cluster centroids
+  cosine_threshold: 0.55               # 0.55 - 0.65 typical range; tune on a held-out set
+
+# Quality filters — see filters.FilterThresholds
+filters:
+  min_duration_sec: 3.0
+  max_duration_sec: 90.0
+  min_asr_confidence: 0.6
+  max_no_speech_prob: 0.3
+  max_compression_ratio: 2.4
+  max_filler_ratio: 0.15
+  max_overlap_ratio: 0.10
+  min_speaker_confidence: 0.55
+  min_topic_similarity: 0.0   # absolute gate disabled by default; rely on relative
+  relative_topic_percentile: 0.40   # keep top 60% of corpus by topic similarity
+
+# Topic gate — embed each segment and rank against this seed prompt corpus
+topic:
+  embedding_model: "BAAI/bge-large-en-v1.5"
+  seed_prompts:
+    - "Listing a new product with a Canadian grocery retailer like Loblaws or Sobeys."
+    - "Retail pricing strategy and category margin calculations."
+    - "Trade spend, free fill, listing fees, and promotional planning."
+    - "Cost of goods sold, gross margin, and retail formula."
+    - "Working with category managers and grocery buyers."
+    - "Private label competition and shelf placement."
+    - "Canadian Grocery Code of Conduct and supplier disputes."
+    - "Sustainability, packaging, and food waste in CPG."
+    - "Food safety, labelling, and Canadian regulatory compliance."
+    - "Scaling a food brand from regional to national distribution."
+    - "The CART framework: Consumer, Alignment, Retail Plan, Trust."
+
+# Ad / sponsor removal
+ads:
+  use_sponsorblock: true
+  use_chapter_metadata: true
+  ad_keyword_patterns:
+    - "sponsor"
+    - "sponsored by"
+    - "promo code"
+    - "use code"
+    - "this episode is brought to you by"

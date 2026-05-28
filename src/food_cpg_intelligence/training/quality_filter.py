@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import structlog
 
 from food_cpg_intelligence.evaluation.models import GoldStandardItem
@@ -9,19 +11,35 @@ from food_cpg_intelligence.training.models import TrainingTriple
 
 logger = structlog.stdlib.get_logger(__name__)
 
+# Defaults match the Run 001 short-answer Q&A format. For continuation-mode
+# voice training (chunks up to ~5000 chars / ~1200 tokens), pass an explicit
+# `FilterThresholds(max_response_chars=10000, max_category_fraction=0.95)`.
 MIN_RESPONSE_CHARS = 50
 MAX_RESPONSE_CHARS = 2000
 MIN_INSTRUCTION_CHARS = 10
 MAX_CATEGORY_FRACTION = 0.30
 
 
-def filter_by_length(triples: list[TrainingTriple]) -> list[TrainingTriple]:
+@dataclass(frozen=True)
+class FilterThresholds:
+    """Tunable thresholds for the quality pipeline."""
+
+    min_response_chars: int = MIN_RESPONSE_CHARS
+    max_response_chars: int = MAX_RESPONSE_CHARS
+    min_instruction_chars: int = MIN_INSTRUCTION_CHARS
+    max_category_fraction: float = MAX_CATEGORY_FRACTION
+
+
+def filter_by_length(
+    triples: list[TrainingTriple], thresholds: FilterThresholds | None = None
+) -> list[TrainingTriple]:
     """Remove triples with responses outside acceptable length range."""
+    t = thresholds or FilterThresholds()
     filtered = [
-        t
-        for t in triples
-        if MIN_RESPONSE_CHARS <= len(t.response) <= MAX_RESPONSE_CHARS
-        and len(t.instruction) >= MIN_INSTRUCTION_CHARS
+        tr
+        for tr in triples
+        if t.min_response_chars <= len(tr.response) <= t.max_response_chars
+        and len(tr.instruction) >= t.min_instruction_chars
     ]
     removed = len(triples) - len(filtered)
     if removed:
@@ -82,16 +100,21 @@ def balance_categories(
     triples: list[TrainingTriple],
     *,
     max_fraction: float = MAX_CATEGORY_FRACTION,
+    thresholds: FilterThresholds | None = None,
 ) -> list[TrainingTriple]:
     """Cap any single category at max_fraction of total items.
 
     Excess items from over-represented categories are trimmed (last in, first out).
+    `thresholds.max_category_fraction` overrides `max_fraction` when supplied.
     """
     total = len(triples)
     if total == 0:
         return triples
 
-    max_per_cat = max(1, int(total * max_fraction))
+    effective_fraction = (
+        thresholds.max_category_fraction if thresholds is not None else max_fraction
+    )
+    max_per_cat = max(1, int(total * effective_fraction))
 
     by_cat: dict[str, list[TrainingTriple]] = {}
     for t in triples:
@@ -117,6 +140,8 @@ def balance_categories(
 def run_quality_pipeline(
     triples: list[TrainingTriple],
     gold_items: list[GoldStandardItem],
+    *,
+    thresholds: FilterThresholds | None = None,
 ) -> tuple[list[TrainingTriple], dict[str, int]]:
     """Run the full quality filtering pipeline.
 
@@ -126,7 +151,7 @@ def run_quality_pipeline(
     """
     stats: dict[str, int] = {"input": len(triples)}
 
-    filtered = filter_by_length(triples)
+    filtered = filter_by_length(triples, thresholds)
     stats["after_length"] = len(filtered)
 
     filtered, dedup_count = deduplicate(filtered)
@@ -135,7 +160,7 @@ def run_quality_pipeline(
     filtered, contam_count = check_contamination(filtered, gold_items)
     stats["contamination_removed"] = contam_count
 
-    filtered = balance_categories(filtered)
+    filtered = balance_categories(filtered, thresholds=thresholds)
     stats["after_balance"] = len(filtered)
     stats["output"] = len(filtered)
 

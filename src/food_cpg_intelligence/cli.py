@@ -2,6 +2,7 @@
 
 import typer
 
+from food_cpg_intelligence.cli_audio import app as audio_app
 from food_cpg_intelligence.cli_bench import app as bench_app
 from food_cpg_intelligence.cli_data import app as data_app
 from food_cpg_intelligence.cli_eval import app as eval_app
@@ -16,6 +17,7 @@ app = typer.Typer(
 
 # Register subcommand groups
 app.add_typer(data_app)
+app.add_typer(audio_app)
 app.add_typer(eval_app)
 app.add_typer(train_app)
 app.add_typer(rag_app)

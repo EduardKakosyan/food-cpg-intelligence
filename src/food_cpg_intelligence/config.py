@@ -49,11 +49,19 @@ class Settings(BaseSettings):
 
     # --- Models (inference) ---
     claude_model: str = "claude-sonnet-4-6"
-    ollama_model: str = "skufood-9b"
+    ollama_model: str = "skufood-9b-v2"
 
     # --- Serving ---
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+
+    # --- Audio ingestion ---
+    audio_raw_dir: str = "data/raw/audio"
+    audio_processed_dir: str = "data/processed/audio"
+    audio_cache_dir: str = "models/audio_cache"
+    audio_config_path: str = "configs/audio.yaml"
+    peter_reference_clip: str = "data/raw/audio/peter_reference.wav"
+    huggingface_token: str = ""
 
     def resolve_path(self, relative: str) -> Path:
         """Return absolute path, adjusting base for local vs. Colab environment."""

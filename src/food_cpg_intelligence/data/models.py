@@ -26,6 +26,9 @@ class Newsletter(BaseModel, frozen=True):
     sections: tuple[NewsletterSection, ...] = ()
     raw_word_count: int = 0
     source_file: str = ""
+    # Distribution channel: "skufood" (default) or "thegrower" (cross-posted version).
+    # Used to disambiguate doc_id when the same blog number appears on both channels.
+    channel: Literal["skufood", "thegrower"] = "skufood"
 
     @property
     def full_text(self) -> str:
@@ -33,11 +36,14 @@ class Newsletter(BaseModel, frozen=True):
         return "\n\n".join(part for s in self.sections for part in (s.heading, s.body) if part)
 
 
+ContentType = Literal["newsletter", "membership", "reference", "transcript"]
+
+
 class ProcessedDocument(BaseModel, frozen=True):
     """Unified wrapper for any processed document in the corpus."""
 
     doc_id: str
-    content_type: Literal["newsletter", "transcript"] = "newsletter"
+    content_type: ContentType = "newsletter"
     title: str = ""
     full_text: str = ""
     word_count: int = 0
@@ -48,8 +54,9 @@ class ProcessedDocument(BaseModel, frozen=True):
     def from_newsletter(newsletter: Newsletter) -> ProcessedDocument:
         """Convert a Newsletter into a ProcessedDocument."""
         full_text = newsletter.full_text
+        suffix = "" if newsletter.channel == "skufood" else f"-{newsletter.channel}"
         return ProcessedDocument(
-            doc_id=f"newsletter-{newsletter.blog_number}",
+            doc_id=f"newsletter-{newsletter.blog_number}{suffix}",
             content_type="newsletter",
             title=newsletter.title,
             full_text=full_text,
@@ -57,6 +64,7 @@ class ProcessedDocument(BaseModel, frozen=True):
             source_file=newsletter.source_file,
             metadata={
                 "blog_number": newsletter.blog_number,
+                "channel": newsletter.channel,
                 "published_date": newsletter.published_date.isoformat()
                 if newsletter.published_date
                 else None,

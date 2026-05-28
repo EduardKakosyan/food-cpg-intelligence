@@ -30,7 +30,7 @@ def test_model_defaults() -> None:
     s = Settings()
     assert s.base_model == "Qwen/Qwen3.5-9B"
     assert s.claude_model == "claude-sonnet-4-6"
-    assert s.ollama_model == "skufood-9b"
+    assert s.ollama_model == "skufood-9b-v2"
     assert s.lora_rank == 16
     assert s.lora_alpha == 32
 

@@ -79,4 +79,5 @@ def clean_newsletter(newsletter: Newsletter) -> Newsletter:
         sections=cleaned_sections,
         raw_word_count=newsletter.raw_word_count,
         source_file=newsletter.source_file,
+        channel=newsletter.channel,
     )
